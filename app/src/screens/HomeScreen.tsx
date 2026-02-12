@@ -27,9 +27,23 @@ export default function HomeScreen({ onShowHowItWorks }: HomeScreenProps) {
     fetchTodayFeed();
   }, []);
 
-  const fetchTodayFeed = async () => {
+  const fetchTodayFeed = async (triggerIngestion = false) => {
     try {
       setError(null);
+      
+      // Optionally trigger the Edge Function to fetch fresh news first
+      if (triggerIngestion) {
+        try {
+          const { error: invokeError } = await supabase.functions.invoke('ingest_and_score');
+          if (invokeError) {
+            console.warn('Ingestion trigger failed:', invokeError);
+            // Continue to refetch anyway - might have existing data
+          }
+        } catch (invokeErr) {
+          console.warn('Failed to trigger ingestion:', invokeErr);
+        }
+      }
+
       const today = getTodayDateString();
 
       // Query daily_feed joined with articles for today's feed
@@ -83,7 +97,8 @@ export default function HomeScreen({ onShowHowItWorks }: HomeScreenProps) {
 
   const handleRefresh = () => {
     setRefreshing(true);
-    fetchTodayFeed();
+    // Pass true to trigger the Edge Function for fresh news, then refetch
+    fetchTodayFeed(true);
   };
 
   const handleOpenArticle = async (url: string) => {
@@ -140,11 +155,18 @@ export default function HomeScreen({ onShowHowItWorks }: HomeScreenProps) {
           <Text style={styles.emptyIcon}>📰</Text>
           <Text style={styles.emptyTitle}>No happy news yet</Text>
           <Text style={styles.emptyText}>
-            Check back later. The feed is updated 4 times daily with fresh, positive news.
+            {refreshing
+              ? 'Fetching fresh news... This may take a minute.'
+              : 'Check back later. The feed is updated 4 times daily. Tap Refresh to fetch now.'}
           </Text>
-          <TouchableOpacity style={styles.refreshButton} onPress={handleRefresh}>
-            <Text style={styles.refreshButtonText}>Refresh</Text>
-          </TouchableOpacity>
+          {!refreshing && (
+            <TouchableOpacity style={styles.refreshButton} onPress={handleRefresh}>
+              <Text style={styles.refreshButtonText}>Refresh</Text>
+            </TouchableOpacity>
+          )}
+          {refreshing && (
+            <ActivityIndicator size="large" color="#3b82f6" style={{ marginTop: 20 }} />
+          )}
         </View>
       </ScrollView>
     );

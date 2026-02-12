@@ -804,8 +804,8 @@ serve(async (req) => {
   }
 
   try {
-    // Only allow GET requests for now
-    if (req.method !== 'GET') {
+    // Allow GET and POST (Supabase client uses POST for functions.invoke)
+    if (req.method !== 'GET' && req.method !== 'POST') {
       log('warn', 'Method not allowed', {
         requestId,
         method: req.method,
