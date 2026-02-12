@@ -1,0 +1,51 @@
+# Supabase CLI configuration
+# This file is used by Supabase CLI for local development
+
+[project]
+# Your Supabase project reference ID
+# You can find this in your Supabase dashboard under Settings > General
+
+[api]
+# API configuration
+enabled = true
+port = 54321
+schemas = ["public", "storage"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+# Database configuration
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[studio]
+# Supabase Studio configuration
+enabled = true
+port = 54323
+api_url = "http://127.0.0.1:54321"
+
+[inbucket]
+# Email testing configuration
+enabled = true
+port = 54324
+smtp_port = 54325
+pop3_port = 54326
+
+[storage]
+# Storage configuration
+enabled = true
+file_size_limit = "50MiB"
+
+[auth]
+# Auth configuration
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["https://localhost:3000"]
+jwt_expiry = 3600
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false
