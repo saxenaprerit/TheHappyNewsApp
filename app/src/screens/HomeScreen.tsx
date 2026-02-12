@@ -9,6 +9,7 @@ import {
   Linking,
   RefreshControl,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../lib/supabase';
 import { DailyFeedItem } from '../types/article';
 import { formatDate, getTodayDateString } from '../utils/dateFormat';
@@ -18,10 +19,13 @@ interface HomeScreenProps {
 }
 
 export default function HomeScreen({ onShowHowItWorks }: HomeScreenProps) {
+  const insets = useSafeAreaInsets();
   const [articles, setArticles] = useState<DailyFeedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshedWithNoNew, setRefreshedWithNoNew] = useState(false);
+  const [showNoNewBanner, setShowNoNewBanner] = useState(false);
 
   useEffect(() => {
     fetchTodayFeed();
@@ -85,6 +89,22 @@ export default function HomeScreen({ onShowHowItWorks }: HomeScreenProps) {
           articles: Array.isArray(item.articles) ? item.articles[0] : item.articles,
         }));
 
+      if (triggerIngestion && feedItems.length === 0) {
+        setRefreshedWithNoNew(true);
+      } else {
+        setRefreshedWithNoNew(false);
+      }
+      if (triggerIngestion && feedItems.length > 0 && articles.length > 0) {
+        const newIds = new Set(feedItems.map((f) => f.article_id));
+        const oldIds = new Set(articles.map((a) => a.article_id));
+        const noNewArticles = newIds.size === oldIds.size && [...newIds].every((id) => oldIds.has(id));
+        if (noNewArticles) {
+          setShowNoNewBanner(true);
+          setTimeout(() => setShowNoNewBanner(false), 3000);
+        }
+      } else {
+        setShowNoNewBanner(false);
+      }
       setArticles(feedItems);
     } catch (err: any) {
       console.error('Error fetching feed:', err);
@@ -116,7 +136,7 @@ export default function HomeScreen({ onShowHowItWorks }: HomeScreenProps) {
 
   if (loading) {
     return (
-      <View style={styles.centerContainer}>
+      <View style={[styles.centerContainer, { paddingTop: insets.top }]}>
         <ActivityIndicator size="large" color="#3b82f6" />
         <Text style={styles.loadingText}>Loading happy news...</Text>
       </View>
@@ -125,13 +145,31 @@ export default function HomeScreen({ onShowHowItWorks }: HomeScreenProps) {
 
   if (error && articles.length === 0) {
     return (
-      <ScrollView
-        contentContainerStyle={styles.centerContainer}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-        }
-      >
-        <View style={styles.errorStateContainer}>
+      <View style={styles.wrapper}>
+        {refreshing && (
+          <View style={[styles.refreshOverlay, { paddingTop: insets.top + 8 }]}>
+            <ActivityIndicator size="small" color="#ffffff" />
+            <Text style={styles.refreshOverlayText}>Refreshing...</Text>
+          </View>
+        )}
+        <ScrollView
+          contentContainerStyle={[
+            styles.centerContainer,
+            {
+              paddingTop: insets.top,
+              paddingBottom: insets.bottom,
+            },
+          ]}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor="#3b82f6"
+              colors={['#3b82f6']}
+            />
+          }
+        >
+          <View style={styles.errorStateContainer}>
           <Text style={styles.errorIcon}>⚠️</Text>
           <Text style={styles.errorTitle}>Something went wrong</Text>
           <Text style={styles.errorText}>{error}</Text>
@@ -139,25 +177,48 @@ export default function HomeScreen({ onShowHowItWorks }: HomeScreenProps) {
             <Text style={styles.retryButtonText}>Try Again</Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
+        </ScrollView>
+      </View>
     );
   }
 
   if (articles.length === 0) {
     return (
-      <ScrollView
-        contentContainerStyle={styles.centerContainer}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-        }
-      >
-        <View style={styles.emptyStateContainer}>
+      <View style={styles.wrapper}>
+        {refreshing && (
+          <View style={[styles.refreshOverlay, { paddingTop: insets.top + 8 }]}>
+            <ActivityIndicator size="small" color="#ffffff" />
+            <Text style={styles.refreshOverlayText}>Refreshing...</Text>
+          </View>
+        )}
+        <ScrollView
+          contentContainerStyle={[
+            styles.centerContainer,
+            {
+              paddingTop: insets.top,
+              paddingBottom: insets.bottom,
+            },
+          ]}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor="#3b82f6"
+              colors={['#3b82f6']}
+            />
+          }
+        >
+          <View style={styles.emptyStateContainer}>
           <Text style={styles.emptyIcon}>📰</Text>
-          <Text style={styles.emptyTitle}>No happy news yet</Text>
+          <Text style={styles.emptyTitle}>
+            {refreshedWithNoNew ? 'No new news to display' : 'No happy news yet'}
+          </Text>
           <Text style={styles.emptyText}>
             {refreshing
               ? 'Fetching fresh news... This may take a minute.'
-              : 'Check back later. The feed is updated 4 times daily. Tap Refresh to fetch now.'}
+              : refreshedWithNoNew
+                ? 'No new articles were found. Check back later.'
+                : 'Check back later. The feed is updated 4 times daily. Tap Refresh to fetch now.'}
           </Text>
           {!refreshing && (
             <TouchableOpacity style={styles.refreshButton} onPress={handleRefresh}>
@@ -168,18 +229,46 @@ export default function HomeScreen({ onShowHowItWorks }: HomeScreenProps) {
             <ActivityIndicator size="large" color="#3b82f6" style={{ marginTop: 20 }} />
           )}
         </View>
-      </ScrollView>
+        </ScrollView>
+      </View>
     );
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.contentContainer}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-      }
-    >
+    <View style={styles.wrapper}>
+      {/* Fixed refresh overlay - always visible when refreshing */}
+      {refreshing && (
+        <View style={[styles.refreshOverlay, { paddingTop: insets.top + 8 }]}>
+          <ActivityIndicator size="small" color="#ffffff" />
+          <Text style={styles.refreshOverlayText}>Refreshing...</Text>
+        </View>
+      )}
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={[
+          styles.contentContainer,
+          {
+            paddingTop: insets.top + 16,
+            paddingBottom: insets.bottom + 32,
+          },
+        ]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor="#3b82f6"
+            colors={['#3b82f6']}
+            progressViewOffset={insets.top}
+          />
+        }
+        bounces={true}
+        overScrollMode="always"
+      >
+      {showNoNewBanner && (
+        <View style={styles.noNewBanner}>
+          <Text style={styles.noNewBannerText}>No new news to display</Text>
+        </View>
+      )}
       {error && (
         <View style={styles.errorBanner}>
           <Text style={styles.errorBannerText}>⚠️ {error}</Text>
@@ -206,7 +295,8 @@ export default function HomeScreen({ onShowHowItWorks }: HomeScreenProps) {
           onReadOriginal={() => handleOpenArticle(item.articles.article_url)}
         />
       ))}
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -242,6 +332,41 @@ function ArticleCard({ article, onReadOriginal }: ArticleCardProps) {
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    flex: 1,
+  },
+  refreshOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#3b82f6',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    zIndex: 1000,
+  },
+  refreshOverlayText: {
+    marginLeft: 10,
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  noNewBanner: {
+    backgroundColor: '#e0e7ff',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  noNewBannerText: {
+    color: '#3730a3',
+    fontSize: 14,
+    fontWeight: '500',
+  },
   container: {
     flex: 1,
     backgroundColor: '#f9fafb',

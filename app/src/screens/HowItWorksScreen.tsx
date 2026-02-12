@@ -6,15 +6,26 @@ import {
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface HowItWorksScreenProps {
   onBack: () => void;
 }
 
 export default function HowItWorksScreen({ onBack }: HowItWorksScreenProps) {
+  const insets = useSafeAreaInsets();
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[
+        styles.contentContainer,
+        {
+          paddingTop: insets.top + 20,
+          paddingBottom: insets.bottom + 40,
+        },
+      ]}
+    >
       <View style={styles.header}>
         <Text style={styles.title}>How It Works</Text>
       </View>
